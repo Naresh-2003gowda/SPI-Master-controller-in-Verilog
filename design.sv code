@@ -1,0 +1,84 @@
+# design.sv
+
+module spi_master (
+    input  wire        clk,
+    input  wire        rst,
+    input  wire        start,
+    input  wire [7:0]  tx_data,
+    input  wire        miso,
+
+    output reg         mosi,
+    output reg         sclk,
+    output reg         cs,
+    output reg [7:0]   rx_data,
+    output reg         done
+);
+
+    parameter CLK_DIV = 4;
+
+    reg [2:0] state;
+    reg [7:0] shift_reg;
+    reg [2:0] bit_cnt;
+    reg [2:0] clk_cnt;
+
+    localparam IDLE     = 3'd0,
+               LOAD     = 3'd1,
+               TRANSFER = 3'd2,
+               FINISH   = 3'd3;
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            state     <= IDLE;
+            cs        <= 1'b1;
+            sclk      <= 1'b0;
+            done      <= 1'b0;
+            mosi      <= 1'b0;
+            rx_data   <= 8'd0;
+            bit_cnt   <= 3'd0;
+            clk_cnt   <= 3'd0;
+        end else begin
+            case (state)
+
+                IDLE: begin
+                    cs   <= 1'b1;
+                    sclk <= 1'b0;
+                    done <= 1'b0;
+                    if (start)
+                        state <= LOAD;
+                end
+
+                LOAD: begin
+                    cs        <= 1'b0;
+                    shift_reg <= tx_data;
+                    bit_cnt   <= 3'd7;
+                    state     <= TRANSFER;
+                end
+
+                TRANSFER: begin
+                    clk_cnt <= clk_cnt + 1;
+
+                    if (clk_cnt == CLK_DIV-1) begin
+                        clk_cnt <= 0;
+                        sclk    <= ~sclk;
+
+                        if (sclk == 1'b0) begin
+                            rx_data[bit_cnt] <= miso;   // sample
+                        end else begin
+                            mosi <= shift_reg[bit_cnt]; // shift
+                            if (bit_cnt == 0)
+                                state <= FINISH;
+                            else
+                                bit_cnt <= bit_cnt - 1;
+                        end
+                    end
+                end
+
+                FINISH: begin
+                    cs   <= 1'b1;
+                    done <= 1'b1;
+                    state <= IDLE;
+                end
+            endcase
+        end
+    end
+endmodule

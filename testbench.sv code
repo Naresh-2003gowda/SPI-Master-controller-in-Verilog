@@ -1,0 +1,52 @@
+# testbench.sv
+
+module tb_spi_master;
+
+    reg clk = 0;
+    reg rst;
+    reg start;
+    reg miso;
+    reg [7:0] tx_data;
+
+    wire mosi, sclk, cs, done;
+    wire [7:0] rx_data;
+
+    spi_master dut (
+        .clk(clk),
+        .rst(rst),
+        .start(start),
+        .tx_data(tx_data),
+        .miso(miso),
+        .mosi(mosi),
+        .sclk(sclk),
+        .cs(cs),
+        .rx_data(rx_data),
+        .done(done)
+    );
+
+    // 🔹 ADD THIS INITIAL BLOCK (VERY IMPORTANT)
+    initial begin
+        $dumpfile("dump.vcd");
+        $dumpvars(0, tb_spi_master);
+    end
+
+    always #5 clk = ~clk;
+
+    initial begin
+        rst = 1;
+        start = 0;
+        miso = 0;
+        tx_data = 8'hA5;
+
+        #20 rst = 0;
+        #20 start = 1;
+        #10 start = 0;
+
+        repeat (8) begin
+            @(negedge sclk);
+            miso = $random;
+        end
+
+        #200 $finish;
+    end
+endmodule
